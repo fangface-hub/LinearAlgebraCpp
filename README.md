@@ -15,10 +15,19 @@ LinearAlgebraCpp aims to provide a simple and readable implementation of linear 
 - Scalar multiplication
 - Scalar division
 - Matrix transpose
-- Determinant calculation
 - Cofactor calculation
-- Matrix inversion
 - Equality comparison
+
+### Advanced Operations
+
+- Determinant calculation
+- Matrix inversion
+- Rank calculation
+- Automatic algorithm selection
+- Gaussian-elimination-based determinant
+- Gauss-Jordan-based inverse matrix
+- Recursive cofactor expansion implementation
+- Adjugate inverse implementation
 
 ### Vectors
 
@@ -185,6 +194,41 @@ double det = a.Determinant();
 Matrix<double> inv = a.Inverse();
 ```
 
+The educational `DeterminantRecursive()` and `InverseAdjugate()` methods and
+the elimination-based `DeterminantGaussian()` and `InverseGaussJordan()`
+methods can also be called directly.
+`DeterminantRecursive()` expects a square matrix. `InverseAdjugate()` retains
+the original 1×1 cofactor behavior (a zero result); use `Inverse()` or
+`InverseGaussJordan()` for a 1×1 inverse.
+
+### Rank Calculation
+
+```cpp
+Matrix<double> mat{
+    {1, 2, 3},
+    {2, 4, 6},
+    {1, 1, 1}
+};
+
+size_t rank = mat.Rank();
+```
+
+Result:
+
+```text
+2
+```
+
+Elimination uses partial pivoting and an absolute zero threshold of
+`std::numeric_limits<T>::epsilon()` for floating-point matrices. Rank throws
+`std::domain_error` for non-finite elements. Non-square determinants and
+non-invertible matrices return NaN for floating-point element types. Integer
+types cannot represent NaN or fractional inverse elements; invalid operations
+that require NaN throw `std::domain_error` for these types. Use floating-point
+types for inversion and numerical calculations. Integer elimination uses
+long-double arithmetic and a scale-dependent rounding tolerance, so it is not
+an exact integer algorithm.
+
 ---
 
 ## Matrix Construction
@@ -232,6 +276,13 @@ ColVector<double> vec{1.0, 2.0, 3.0};
 
 LinearAlgebraCpp is designed with the following principles:
 
+LinearAlgebraCpp uses multiple algorithms internally and automatically selects
+the most appropriate implementation according to matrix size.
+
+Small matrices use direct formulas or recursive methods for clarity. Larger
+matrices automatically switch to Gaussian elimination and Gauss-Jordan methods
+for significantly improved performance.
+
 ### Simplicity
 
 The implementation prioritizes readability over sophistication. Algorithms are intentionally written in a straightforward manner so that users can easily understand how they work.
@@ -247,6 +298,32 @@ The source code is intended to be readable enough to serve as a learning resourc
 ### Easy Integration
 
 Being a header-only library, integration requires nothing more than copying a few header files into an existing project.
+
+---
+
+## Performance
+
+Determinant calculation automatically selects an algorithm according to matrix size.
+
+| Size | Algorithm |
+|--------|--------|
+| 1×1 | Direct |
+| 2×2 | Closed-form Formula |
+| 3×3 | Sarrus Formula |
+| 4×4 | Recursive Cofactor Expansion |
+| 5×5+ | Gaussian Elimination |
+
+Inverse matrix calculation also selects an implementation automatically.
+
+| Size | Algorithm |
+|--------|--------|
+| 1×1 | Direct |
+| 2×2 | Direct Formula |
+| 3×3 | Adjugate Matrix |
+| 4×4 | Adjugate Matrix |
+| 5×5+ | Gauss-Jordan Elimination |
+
+This hybrid approach combines readability for small matrices with practical performance for larger matrices.
 
 ---
 

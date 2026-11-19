@@ -135,6 +135,133 @@ TEST(MatrixTest, HandlesSingularAndNanInverses) {
   EXPECT_TRUE(std::isnan(nanInverse.Cell(0, 0)));
 }
 
+TEST(MatrixTest, SelectsDeterminantsAndPreservesSource) {
+  const Matrix<double> one = {{5.0}};
+  const Matrix<double> two = {{0.0, 2.0}, {3.0, 4.0}};
+  const Matrix<double> three = {
+      {1.0, 2.0, 3.0}, {0.0, 4.0, 5.0}, {1.0, 0.0, 6.0}};
+  const Matrix<double> four = {{0.0, 1.0, 0.0, 0.0},
+                               {2.0, 0.0, 0.0, 0.0},
+                               {0.0, 0.0, 3.0, 0.0},
+                               {0.0, 0.0, 0.0, 4.0}};
+  const Matrix<double> five = {{0.0, 2.0, 1.0, 0.0, 0.0},
+                               {3.0, 0.0, 1.0, 0.0, 0.0},
+                               {0.0, 0.0, 4.0, 1.0, 0.0},
+                               {0.0, 0.0, 0.0, 5.0, 1.0},
+                               {0.0, 0.0, 0.0, 0.0, 6.0}};
+  const Matrix<double> original = five;
+  EXPECT_DOUBLE_EQ(one.Determinant(), 5.0);
+  EXPECT_DOUBLE_EQ(two.Determinant(), -6.0);
+  EXPECT_DOUBLE_EQ(three.Determinant(), 22.0);
+  EXPECT_DOUBLE_EQ(four.Determinant(), -24.0);
+  EXPECT_DOUBLE_EQ(five.Determinant(), -720.0);
+  EXPECT_DOUBLE_EQ(five.DeterminantGaussian(), five.DeterminantRecursive());
+  EXPECT_TRUE(five == original);
+  EXPECT_TRUE(std::isnan(Matrix<double>{{1.0, 2.0}}.Determinant()));
+  EXPECT_TRUE(std::isnan(Matrix<double>{{1.0, 2.0}}.DeterminantGaussian()));
+  EXPECT_DOUBLE_EQ(
+      (Matrix<double>{{0.0, 1.0}, {0.0, 2.0}}.DeterminantGaussian()), 0.0);
+}
+
+TEST(MatrixTest, SelectsInversesAndPreservesSource) {
+  const Matrix<double> one = {{4.0}};
+  const Matrix<double> three = {
+      {1.0, 2.0, 3.0}, {0.0, 4.0, 5.0}, {1.0, 0.0, 6.0}};
+  const Matrix<double> five = {{0.0, 2.0, 1.0, 0.0, 0.0},
+                               {3.0, 0.0, 1.0, 0.0, 0.0},
+                               {0.0, 0.0, 4.0, 1.0, 0.0},
+                               {0.0, 0.0, 0.0, 5.0, 1.0},
+                               {0.0, 0.0, 0.0, 0.0, 6.0}};
+  const Matrix<double> original = five;
+  EXPECT_DOUBLE_EQ(one.Inverse().Cell(0, 0), 0.25);
+  EXPECT_NEAR(three.InverseAdjugate().Cell(0, 0), 24.0 / 22.0, 1e-12);
+  for (size_t size = 3; size <= 5; size++) {
+    Matrix<double> matrix(size, size);
+    for (size_t row = 0; row < size; row++) {
+      for (size_t col = 0; col < size; col++) {
+        matrix.Cell(row, col) = five.Cell(row, col);
+      }
+    }
+    const Matrix<double> inverse = matrix.Inverse();
+    const Matrix<double> product = matrix * inverse;
+    for (size_t row = 0; row < size; row++) {
+      for (size_t col = 0; col < size; col++) {
+        EXPECT_NEAR(product.Cell(row, col), row == col ? 1.0 : 0.0, 1e-12);
+      }
+    }
+  }
+  EXPECT_TRUE(five == original);
+  const Matrix<double> singular(5, 5);
+  EXPECT_TRUE(std::isnan(singular.Inverse().Cell(4, 4)));
+  EXPECT_TRUE(std::isnan(singular.InverseGaussJordan().Cell(0, 0)));
+  const Matrix<double> rectangular = {{1.0, 2.0}};
+  EXPECT_TRUE(std::isnan(rectangular.InverseGaussJordan().Cell(0, 1)));
+  const Matrix<double> nonfinite = {
+      {std::numeric_limits<double>::quiet_NaN(), 1.0}, {1.0, 0.0}};
+  EXPECT_TRUE(std::isnan(nonfinite.InverseGaussJordan().Cell(0, 0)));
+}
+
+TEST(MatrixTest, CalculatesRankForRectangularAndIntegerMatrices) {
+  const Matrix<double> matrix = {{1, 2, 3}, {2, 4, 6}, {1, 1, 1}};
+  const Matrix<double> wide = {{0, 1, 2, 3}, {0, 2, 4, 6}};
+  const Matrix<double> tall = {{0, 0}, {1, 2}, {2, 4}};
+  const Matrix<int> integers = {{3, 1, 2}, {1, 1, 1}, {4, 2, 3}};
+  const Matrix<double> original = matrix;
+  EXPECT_EQ(matrix.Rank(), 2U);
+  EXPECT_EQ(wide.Rank(), 1U);
+  EXPECT_EQ(tall.Rank(), 1U);
+  EXPECT_EQ(integers.Rank(), 2U);
+  EXPECT_EQ(Matrix<double>(3, 2).Rank(), 0U);
+  EXPECT_EQ(Matrix<double>{{std::numeric_limits<double>::epsilon() / 2}}.Rank(),
+            0U);
+  EXPECT_TRUE(matrix == original);
+  EXPECT_THROW(
+      (Matrix<double>{{std::numeric_limits<double>::quiet_NaN()}}.Rank()),
+      std::domain_error);
+}
+
+TEST(MatrixTest, SupportsEmptyAndIntegerElimination) {
+  Matrix<double> empty;
+  EXPECT_EQ(empty.Rank(), 0U);
+  EXPECT_DOUBLE_EQ(empty.Determinant(), 0.0);
+  EXPECT_EQ(empty.Inverse().RowSize(), 0U);
+  const Matrix<int> matrix = {{2, 1, 0, 0, 0},
+                              {3, 2, 0, 0, 0},
+                              {0, 0, 1, 0, 0},
+                              {0, 0, 0, 1, 0},
+                              {0, 0, 0, 0, 1}};
+  EXPECT_EQ(matrix.Determinant(), 1);
+  EXPECT_EQ(matrix.Inverse().Cell(0, 0), 2);
+  EXPECT_EQ(matrix.Inverse().Cell(0, 1), -1);
+  EXPECT_THROW(Matrix<int>(5, 5).Inverse(), std::domain_error);
+}
+
+TEST(MatrixTest, EliminatesLargerMatricesAndSmallPivots) {
+  Matrix<double> matrix(25, 25);
+  for (size_t row = 0; row < 25; row++) {
+    matrix.Cell(row, row) = 1.0;
+    if (row + 1 < 25) {
+      matrix.Cell(row, row + 1) = 0.5;
+    }
+  }
+  EXPECT_DOUBLE_EQ(matrix.Determinant(), 1.0);
+  EXPECT_EQ(matrix.Rank(), 25U);
+  const Matrix<double> product = matrix * matrix.Inverse();
+  for (size_t row = 0; row < 25; row++) {
+    for (size_t col = 0; col < 25; col++) {
+      EXPECT_NEAR(product.Cell(row, col), row == col ? 1.0 : 0.0, 1e-12);
+    }
+  }
+  Matrix<double> tiny(5, 5);
+  for (size_t row = 0; row < 5; row++) {
+    tiny.Cell(row, row) = 1.0;
+  }
+  tiny.Cell(0, 0) = std::numeric_limits<double>::epsilon() / 2;
+  EXPECT_DOUBLE_EQ(tiny.Determinant(), 0.0);
+  EXPECT_EQ(tiny.Rank(), 4U);
+  EXPECT_TRUE(std::isnan(tiny.Inverse().Cell(0, 0)));
+}
+
 TEST(MatrixTest, HandlesDivisionByZeroWithoutChangingSource) {
   const Matrix<double> matrix = {{2.0, 4.0}};
   const Matrix<double> result = matrix / 0.0;

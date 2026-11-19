@@ -6,6 +6,7 @@
 #include <limits>
 #include <memory>
 #include <new>
+#include <stdexcept>
 
 /**
  * @brief Matrix
@@ -54,6 +55,11 @@ class Matrix {
      */
     MatrixRow();
   };
+
+  /**
+   * @brief Construct an empty matrix
+   */
+  Matrix();
 
   /**
    * @brief Constructor
@@ -134,11 +140,25 @@ class Matrix {
   Matrix<T> SubMatrix(const size_t& delRow, const size_t& delCol) const;
 
   /**
-   * @brief Determinant calculation
-   * @param [in] squareMatrix Square matrix
-   * @return Determinant
+   * @brief Calculate the determinant using an algorithm selected by size
+   * @return Determinant, or NaN for a non-square matrix
+   * @throw std::domain_error if NaN is needed but T cannot represent it
    */
   T Determinant(void) const;
+
+  /**
+   * @brief Calculate the determinant by recursive cofactor expansion
+   * @return Determinant
+   * @pre The matrix is square
+   */
+  T DeterminantRecursive(void) const;
+
+  /**
+   * @brief Calculate the determinant by Gaussian elimination
+   * @return Determinant, or NaN for a non-square matrix
+   * @throw std::domain_error if NaN is needed but T cannot represent it
+   */
+  T DeterminantGaussian(void) const;
 
   /**
    * @brief Cofactor calculation
@@ -151,9 +171,38 @@ class Matrix {
 
   /**
    * @brief Inverse matrix calculation
-   * @return Inverse matrix
+   * @return Inverse matrix, or a NaN matrix if inversion is impossible
+   * @throw std::domain_error if NaN is needed but T cannot represent it
    */
   Matrix<T> Inverse(void) const;
+
+  /**
+   * @brief Calculate the inverse using the adjugate matrix
+   * @return Inverse matrix, or a NaN matrix if inversion is impossible
+   * @remarks Retains the original 1x1 cofactor behavior; use Inverse for 1x1.
+   * @throw std::domain_error if NaN is needed but T cannot represent it
+   */
+  Matrix<T> InverseAdjugate(void) const;
+
+  /**
+   * @brief Calculate the inverse using Gauss-Jordan elimination
+   * @return Inverse matrix, or a NaN matrix if inversion is impossible
+   * @throw std::domain_error if NaN is needed but T cannot represent it
+   */
+  Matrix<T> InverseGaussJordan(void) const;
+
+  /**
+   * @brief Calculate the rank using Gaussian elimination
+   * @return Number of pivots in row-echelon form
+   * @throw std::domain_error if a matrix element is not finite
+   */
+  size_t Rank(void) const;
+
+  /**
+   * @brief Check whether the matrix is square
+   * @return True if the numbers of rows and columns are equal
+   */
+  bool IsSquare(void) const;
 
   /**
    * @brief Transposed matrix
@@ -231,12 +280,6 @@ class Matrix {
   size_t m_colSize;              /**< Number of columns */
 
   /**
-   * @brief Constructor
-   * @remarks Do not use
-   */
-  Matrix();
-
-  /**
    * @brief Initialize object
    */
   void Init(void);
@@ -260,6 +303,25 @@ class Matrix {
    * @brief Destroy object
    */
   void Destroy(void);
+
+ private:
+  /**
+   * @brief Reduce a working matrix using partial pivoting
+   * @param [in,out] matrix Working matrix, optionally augmented
+   * @param [in] columns Number of coefficient columns
+   * @param [in] reduced Whether to reduce above pivots as well
+   * @param [out] pivotProduct Product of pivots, including swap signs
+   * @return Number of pivots
+   */
+  static size_t Eliminate(Matrix<long double>& matrix, size_t columns,
+                          bool reduced, long double& pivotProduct);
+
+  /**
+   * @brief Return NaN, or report an error when the element type has no NaN
+   * @return NaN
+   * @throw std::domain_error if the element type cannot represent NaN
+   */
+  static T InvalidValue(void);
 };
 
 template <class T>
@@ -351,8 +413,7 @@ Matrix<T>::MatrixRow::MatrixRow() {
 }
 
 /**
- * @brief Constructor
- * @remarks Do not use
+ * @brief Construct an empty matrix
  */
 template <class T>
 Matrix<T>::Matrix() {
@@ -485,12 +546,41 @@ Matrix<T> Matrix<T>::SubMatrix(const size_t& delRow,
 }
 
 /**
- * @brief Determinant calculation
- * @param [in] squareMatrix Square matrix
- * @return Determinant
+ * @brief Calculate the determinant using an algorithm selected by size
  */
 template <class T>
 T Matrix<T>::Determinant(void) const {
+  if (!IsSquare()) {
+    return InvalidValue();
+  }
+  if (m_rowSize == 0) {
+    return static_cast<T>(0);
+  }
+  if (m_rowSize == 1) {
+    return Cell(0, 0);
+  }
+  if (m_rowSize == 2) {
+    return Cell(0, 0) * Cell(1, 1) - Cell(0, 1) * Cell(1, 0);
+  }
+  if (m_rowSize == 3) {
+    return Cell(0, 0) * Cell(1, 1) * Cell(2, 2) +
+           Cell(0, 1) * Cell(1, 2) * Cell(2, 0) +
+           Cell(0, 2) * Cell(1, 0) * Cell(2, 1) -
+           Cell(0, 2) * Cell(1, 1) * Cell(2, 0) -
+           Cell(0, 1) * Cell(1, 0) * Cell(2, 2) -
+           Cell(0, 0) * Cell(1, 2) * Cell(2, 1);
+  }
+  if (m_rowSize == 4) {
+    return DeterminantRecursive();
+  }
+  return DeterminantGaussian();
+}
+
+/**
+ * @brief Calculate the determinant by recursive cofactor expansion
+ */
+template <class T>
+T Matrix<T>::DeterminantRecursive(void) const {
   /* Single-element case */
   if (m_rowSize == 1 && m_colSize == 1) {
     return Cell(0, 0);
@@ -502,9 +592,41 @@ T Matrix<T>::Determinant(void) const {
     if (std::abs(Cell(0, col)) < std::numeric_limits<T>::epsilon()) {
       continue;
     }
-    ret += Cell(0, col) * Cofactor(0, col);
+    Matrix<T> subMatrix = SubMatrix(0, col);
+    T sign = col % 2 == 0 ? static_cast<T>(1) : static_cast<T>(-1);
+    ret += Cell(0, col) * sign * subMatrix.DeterminantRecursive();
   }
   return ret;
+}
+
+/**
+ * @brief Calculate the determinant by Gaussian elimination
+ */
+template <class T>
+T Matrix<T>::DeterminantGaussian(void) const {
+  if (!IsSquare()) {
+    return InvalidValue();
+  }
+  if (m_rowSize == 0) {
+    return static_cast<T>(0);
+  }
+  Matrix<long double> work(m_rowSize, m_colSize);
+  for (size_t row = 0; row < m_rowSize; row++) {
+    for (size_t col = 0; col < m_colSize; col++) {
+      work.Cell(row, col) = static_cast<long double>(Cell(row, col));
+      if (!std::isfinite(work.Cell(row, col))) {
+        return InvalidValue();
+      }
+    }
+  }
+  long double product = 1;
+  if (Eliminate(work, m_colSize, false, product) != m_rowSize) {
+    return static_cast<T>(0);
+  }
+  if (std::numeric_limits<T>::is_integer) {
+    product = std::round(product);
+  }
+  return static_cast<T>(product);
 }
 
 /**
@@ -528,16 +650,46 @@ T Matrix<T>::Cofactor(const size_t& row, const size_t& col) const {
  */
 template <class T>
 Matrix<T> Matrix<T>::Inverse(void) const {
+  if (!IsSquare() || m_rowSize == 0 || m_rowSize == 3 || m_rowSize == 4) {
+    return InverseAdjugate();
+  }
+  if (m_rowSize >= 5) {
+    return InverseGaussJordan();
+  }
+  Matrix<T> ret(m_rowSize, m_colSize);
+  T det = Determinant();
+  if (std::isnan(det) || det == static_cast<T>(0) ||
+      std::abs(det) < std::numeric_limits<T>::epsilon()) {
+    ret.Fill(InvalidValue());
+    return ret;
+  }
+  if (m_rowSize == 1) {
+    ret.Cell(0, 0) = static_cast<T>(1) / det;
+  } else {
+    ret.Cell(0, 0) = Cell(1, 1) / det;
+    ret.Cell(0, 1) = -Cell(0, 1) / det;
+    ret.Cell(1, 0) = -Cell(1, 0) / det;
+    ret.Cell(1, 1) = Cell(0, 0) / det;
+  }
+  return ret;
+}
+
+/**
+ * @brief Calculate the inverse using the adjugate matrix
+ */
+template <class T>
+Matrix<T> Matrix<T>::InverseAdjugate(void) const {
   Matrix<T> ret(m_rowSize, m_colSize); /* Return value */
   /* Not a square matrix */
   if (m_rowSize != m_colSize) {
-    ret.Fill(NAN);
+    ret.Fill(InvalidValue());
     return ret;
   }
   T det = Determinant(); /* Determinant */
   /* If the determinant cannot be computed or is approximately zero */
-  if (std::isnan(det) || std::abs(det) < std::numeric_limits<T>::epsilon()) {
-    ret.Fill(NAN);
+  if (std::isnan(det) || det == static_cast<T>(0) ||
+      std::abs(det) < std::numeric_limits<T>::epsilon()) {
+    ret.Fill(InvalidValue());
     return ret;
   }
   /* Repeat once for each row */
@@ -549,6 +701,150 @@ Matrix<T> Matrix<T>::Inverse(void) const {
     }
   }
   return ret;
+}
+
+/**
+ * @brief Calculate the inverse using Gauss-Jordan elimination
+ */
+template <class T>
+Matrix<T> Matrix<T>::InverseGaussJordan(void) const {
+  Matrix<T> ret(m_rowSize, m_colSize);
+  if (!IsSquare()) {
+    ret.Fill(InvalidValue());
+    return ret;
+  }
+  Matrix<long double> work(m_rowSize, 2 * m_colSize);
+  for (size_t row = 0; row < m_rowSize; row++) {
+    for (size_t col = 0; col < m_colSize; col++) {
+      work.Cell(row, col) = static_cast<long double>(Cell(row, col));
+      if (!std::isfinite(work.Cell(row, col))) {
+        ret.Fill(InvalidValue());
+        return ret;
+      }
+    }
+    work.Cell(row, m_colSize + row) = 1;
+  }
+  long double product = 1;
+  if (Eliminate(work, m_colSize, true, product) != m_rowSize) {
+    ret.Fill(InvalidValue());
+    return ret;
+  }
+  for (size_t row = 0; row < m_rowSize; row++) {
+    for (size_t col = 0; col < m_colSize; col++) {
+      long double value = work.Cell(row, m_colSize + col);
+      if (std::numeric_limits<T>::is_integer) {
+        long double rounded = std::round(value);
+        long double tolerance = std::numeric_limits<long double>::epsilon() *
+                                std::max(1.0L, std::abs(value)) * m_rowSize;
+        if (std::abs(value - rounded) <= tolerance) {
+          value = rounded;
+        }
+      }
+      ret.Cell(row, col) = static_cast<T>(value);
+    }
+  }
+  return ret;
+}
+
+/**
+ * @brief Calculate the rank using Gaussian elimination
+ */
+template <class T>
+size_t Matrix<T>::Rank(void) const {
+  Matrix<long double> work(m_rowSize, m_colSize);
+  for (size_t row = 0; row < m_rowSize; row++) {
+    for (size_t col = 0; col < m_colSize; col++) {
+      work.Cell(row, col) = static_cast<long double>(Cell(row, col));
+      if (!std::isfinite(work.Cell(row, col))) {
+        throw std::domain_error(
+            "Cannot calculate the rank of a non-finite matrix");
+      }
+    }
+  }
+  long double product = 1;
+  return Eliminate(work, m_colSize, false, product);
+}
+
+/**
+ * @brief Check whether the matrix is square
+ */
+template <class T>
+bool Matrix<T>::IsSquare(void) const {
+  return m_rowSize == m_colSize;
+}
+
+/**
+ * @brief Return NaN, or report an error when the element type has no NaN
+ */
+template <class T>
+T Matrix<T>::InvalidValue(void) {
+  if (!std::numeric_limits<T>::has_quiet_NaN) {
+    throw std::domain_error("Matrix element type cannot represent NaN");
+  }
+  return std::numeric_limits<T>::quiet_NaN();
+}
+
+/**
+ * @brief Reduce a working matrix using partial pivoting
+ */
+template <class T>
+size_t Matrix<T>::Eliminate(Matrix<long double>& matrix, size_t columns,
+                            bool reduced, long double& pivotProduct) {
+  size_t pivotRow = 0;
+  pivotProduct = 1;
+  long double tolerance =
+      static_cast<long double>(std::numeric_limits<T>::epsilon());
+  if (std::numeric_limits<T>::is_integer) {
+    long double scale = 0;
+    for (size_t row = 0; row < matrix.RowSize(); row++) {
+      for (size_t col = 0; col < columns; col++) {
+        scale = std::max(scale, std::abs(matrix.Cell(row, col)));
+      }
+    }
+    tolerance = std::numeric_limits<long double>::epsilon() * scale *
+                std::max(matrix.RowSize(), columns);
+  }
+  for (size_t col = 0; col < columns && pivotRow < matrix.RowSize(); col++) {
+    size_t bestRow = pivotRow;
+    for (size_t row = pivotRow + 1; row < matrix.RowSize(); row++) {
+      if (std::abs(matrix.Cell(row, col)) >
+          std::abs(matrix.Cell(bestRow, col))) {
+        bestRow = row;
+      }
+    }
+    long double pivot = matrix.Cell(bestRow, col);
+    if (pivot == 0 || std::abs(pivot) < tolerance) {
+      continue;
+    }
+    if (bestRow != pivotRow) {
+      for (size_t index = 0; index < matrix.ColSize(); index++) {
+        std::swap(matrix.Cell(bestRow, index), matrix.Cell(pivotRow, index));
+      }
+      pivotProduct = -pivotProduct;
+    }
+    pivotProduct *= pivot;
+    if (reduced) {
+      for (size_t index = col; index < matrix.ColSize(); index++) {
+        matrix.Cell(pivotRow, index) /= pivot;
+      }
+    }
+    for (size_t row = reduced ? 0 : pivotRow + 1; row < matrix.RowSize();
+         row++) {
+      if (row == pivotRow) {
+        continue;
+      }
+      long double factor = matrix.Cell(row, col);
+      if (!reduced) {
+        factor /= pivot;
+      }
+      matrix.Cell(row, col) = 0;
+      for (size_t index = col + 1; index < matrix.ColSize(); index++) {
+        matrix.Cell(row, index) -= factor * matrix.Cell(pivotRow, index);
+      }
+    }
+    pivotRow++;
+  }
+  return pivotRow;
 }
 
 /**
