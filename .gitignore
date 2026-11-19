@@ -72,4 +72,5 @@ Testing/
 /Binary/Sample
 /Binary/MathLibTest
 /coverage/
+/dist/
 !/Makefile

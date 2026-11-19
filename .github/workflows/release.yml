@@ -1,0 +1,64 @@
+name: Release packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version (X.Y.Z, without the v prefix)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-packages
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate version
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$RELEASE_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Version must be X.Y.Z without a v prefix"
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/v$RELEASE_VERSION" >/dev/null; then
+            echo "::error::Tag v$RELEASE_VERSION already exists"
+            exit 1
+          fi
+
+      - name: Install packaging tools
+        run: |
+          sudo -A apt-get update
+          sudo -A apt-get install -y rpm
+
+      - name: Create and push tag
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          git tag "v$RELEASE_VERSION"
+          git push origin "refs/tags/v$RELEASE_VERSION"
+
+      - name: Build packages
+        env:
+          PACKAGE_VERSION: ${{ inputs.version }}
+        run: make release-package
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          gh release create "v$RELEASE_VERSION" \
+            "dist/linearalgebracpp-dev_${RELEASE_VERSION}_all.deb" \
+            "dist/linearalgebracpp-devel-${RELEASE_VERSION}-1.noarch.rpm" \
+            --verify-tag --title "v$RELEASE_VERSION" --generate-notes

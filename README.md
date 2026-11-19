@@ -79,6 +79,58 @@ No external libraries are required.
 #include "ColVector.h"
 ```
 
+### Linux Packages
+
+The GitHub Releases page provides architecture-independent Debian and RPM
+packages. For example:
+
+```bash
+sudo dpkg -i linearalgebracpp-dev_1.2.3_all.deb
+# Or, on Rocky Linux / RHEL:
+sudo rpm -i linearalgebracpp-devel-1.2.3-1.noarch.rpm
+```
+
+The headers are installed directly in `/usr/local/include`, so the includes
+above continue to work. This is a header-only library: there is no compiled
+library to install in `/usr/local/lib`.
+
+### Building Packages
+
+Install `make`, `tar`, `gzip`, and the appropriate packaging tools:
+
+- Ubuntu: `dpkg-deb` (from `dpkg`) for deb, `rpm` for rpmbuild.
+- Rocky Linux / RHEL: `rpm-build` for rpm; `dpkg` from EPEL for deb.
+
+Then run:
+
+```bash
+make deb              # dist/linearalgebracpp-dev_VERSION_all.deb
+make rpm              # dist/linearalgebracpp-devel-VERSION-1.noarch.rpm
+make release-package  # build both
+make package-test     # test package contents and version selection
+```
+
+Package versions are derived from an exact `vX.Y.Z` Git tag on the current
+commit. Untagged builds default to `0.0.0`. For development builds or source
+archives without Git metadata, set `PACKAGE_VERSION` to an `X.Y.Z` version:
+
+```bash
+PACKAGE_VERSION=1.2.3 make release-package
+```
+
+`PACKAGE_VERSION` overrides tag detection and must match the intended source
+version. If a commit has multiple version tags, set it explicitly.
+
+### Publishing a Release
+
+From GitHub Actions, run **Release packages** on the desired commit's branch
+and enter the version as `X.Y.Z` without a `v` prefix. The workflow creates
+and pushes `vX.Y.Z`, builds both packages with that version, and publishes
+a release with GitHub-generated release notes and both packages attached.
+The workflow requires permission to create tags and releases. An existing tag
+is rejected; if a build or release fails after the tag is pushed, resolve the
+failure and handle the existing tag before retrying.
+
 ---
 
 ## Quick Start

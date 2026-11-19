@@ -12,9 +12,20 @@ COVERAGE_BINARY := $(COVERAGE_DIR)/MathLibTest
 COVERAGE_REPORT_DIR := $(COVERAGE_DIR)/html
 COVERAGE_HTML := $(COVERAGE_REPORT_DIR)/index.html
 
-.PHONY: all clean coverage sample style-check test
+.PHONY: all clean coverage deb package-test release-package rpm sample style-check test
 
 all:
+
+deb:
+	sh packaging/package.sh deb
+
+rpm:
+	sh packaging/package.sh rpm
+
+release-package: deb rpm
+
+package-test:
+	sh Tests/PackageTest.sh
 
 sample: Binary/Sample
 
