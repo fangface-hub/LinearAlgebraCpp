@@ -595,7 +595,7 @@ T Matrix<T>::DeterminantRecursive(void) const {
   /* Expand along row 0 using cofactors */
   for (size_t col = 0; col < m_colSize; col++) {
     /* Skip zero-valued elements */
-    if (std::abs(Cell(0, col)) < std::numeric_limits<T>::epsilon()) {
+    if (Cell(0, col) == static_cast<T>(0)) {
       continue;
     }
     Matrix<T> subMatrix = SubMatrix(0, col);
@@ -664,8 +664,7 @@ Matrix<T> Matrix<T>::Inverse(void) const {
   }
   Matrix<T> ret(m_rowSize, m_colSize);
   T det = Determinant();
-  if (std::isnan(det) || det == static_cast<T>(0) ||
-      std::abs(det) < std::numeric_limits<T>::epsilon()) {
+  if (std::isnan(det) || det == static_cast<T>(0)) {
     ret.Fill(InvalidValue());
     return ret;
   }
@@ -693,8 +692,7 @@ Matrix<T> Matrix<T>::InverseAdjugate(void) const {
   }
   T det = Determinant(); /* Determinant */
   /* If the determinant cannot be computed or is approximately zero */
-  if (std::isnan(det) || det == static_cast<T>(0) ||
-      std::abs(det) < std::numeric_limits<T>::epsilon()) {
+  if (std::isnan(det) || det == static_cast<T>(0)) {
     ret.Fill(InvalidValue());
     return ret;
   }
@@ -800,14 +798,17 @@ size_t Matrix<T>::Eliminate(Matrix<long double>& matrix, size_t columns,
   pivotProduct = 1;
   long double tolerance =
       static_cast<long double>(std::numeric_limits<T>::epsilon());
-  if (std::numeric_limits<T>::is_integer) {
+  {
     long double scale = 0;
     for (size_t row = 0; row < matrix.RowSize(); row++) {
       for (size_t col = 0; col < columns; col++) {
         scale = std::max(scale, std::abs(matrix.Cell(row, col)));
       }
     }
-    tolerance = std::numeric_limits<long double>::epsilon() * scale *
+    tolerance = (std::numeric_limits<T>::is_integer
+                     ? std::numeric_limits<long double>::epsilon()
+                     : tolerance) *
+                scale *
                 std::max(matrix.RowSize(), columns);
   }
   for (size_t col = 0; col < columns && pivotRow < matrix.RowSize(); col++) {

@@ -212,8 +212,14 @@ TEST(MatrixTest, CalculatesRankForRectangularAndIntegerMatrices) {
   EXPECT_EQ(tall.Rank(), 1U);
   EXPECT_EQ(integers.Rank(), 2U);
   EXPECT_EQ(Matrix<double>(3, 2).Rank(), 0U);
+  /* Singularity is judged relative to the matrix scale */
   EXPECT_EQ(Matrix<double>{{std::numeric_limits<double>::epsilon() / 2}}.Rank(),
-            0U);
+            1U);
+  EXPECT_EQ(Matrix<double>({{1, 0}, {0, std::numeric_limits<double>::epsilon() / 2}})
+                .Rank(),
+            1U);
+  const Matrix<double> smallScale = {{1e-6, 0, 0}, {0, 1e-6, 0}, {0, 0, 1e-6}};
+  EXPECT_NEAR(smallScale.Inverse().Cell(0, 0), 1e6, 1e-3);
   EXPECT_TRUE(matrix == original);
   EXPECT_THROW(
       (Matrix<double>{{std::numeric_limits<double>::quiet_NaN()}}.Rank()),
