@@ -2,6 +2,7 @@
 #define __MATRIX_H__
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <initializer_list>
 #include <limits>
 #include <memory>
@@ -470,7 +471,12 @@ Matrix<T>::Matrix(const T (&a_matrix)[ROW][COL]) {
 template <class T>
 Matrix<T>::Matrix(std::initializer_list<std::initializer_list<T> > a_matrix) {
   size_t rowSize = a_matrix.size();
-  size_t colSize = a_matrix.begin()->size();
+  size_t colSize = a_matrix.size() == 0 ? 0 : a_matrix.begin()->size();
+  for (const auto& rowList : a_matrix) {
+    if (rowList.size() != colSize) {
+      throw std::invalid_argument("Matrix rows must have the same length");
+    }
+  }
   Init();
   if (Create(rowSize, colSize) == true) {
     size_t row = 0;
@@ -589,7 +595,7 @@ T Matrix<T>::DeterminantRecursive(void) const {
   /* Expand along row 0 using cofactors */
   for (size_t col = 0; col < m_colSize; col++) {
     /* Skip zero-valued elements */
-    if (std::abs(Cell(0, col)) < std::numeric_limits<T>::epsilon()) {
+    if (Cell(0, col) == static_cast<T>(0)) {
       continue;
     }
     Matrix<T> subMatrix = SubMatrix(0, col);
@@ -658,8 +664,7 @@ Matrix<T> Matrix<T>::Inverse(void) const {
   }
   Matrix<T> ret(m_rowSize, m_colSize);
   T det = Determinant();
-  if (std::isnan(det) || det == static_cast<T>(0) ||
-      std::abs(det) < std::numeric_limits<T>::epsilon()) {
+  if (std::isnan(det) || det == static_cast<T>(0)) {
     ret.Fill(InvalidValue());
     return ret;
   }
@@ -687,8 +692,7 @@ Matrix<T> Matrix<T>::InverseAdjugate(void) const {
   }
   T det = Determinant(); /* Determinant */
   /* If the determinant cannot be computed or is approximately zero */
-  if (std::isnan(det) || det == static_cast<T>(0) ||
-      std::abs(det) < std::numeric_limits<T>::epsilon()) {
+  if (std::isnan(det) || det == static_cast<T>(0)) {
     ret.Fill(InvalidValue());
     return ret;
   }
@@ -794,7 +798,7 @@ size_t Matrix<T>::Eliminate(Matrix<long double>& matrix, size_t columns,
   pivotProduct = 1;
   long double tolerance =
       static_cast<long double>(std::numeric_limits<T>::epsilon());
-  if (std::numeric_limits<T>::is_integer) {
+  {
     long double scale = 0;
     for (size_t row = 0; row < matrix.RowSize(); row++) {
       for (size_t col = 0; col < columns; col++) {
@@ -931,6 +935,10 @@ typename Matrix<T>::MatrixRow Matrix<T>::operator[](const size_t& row) const {
 template <class T>
 Matrix<T> Matrix<T>::operator+(const Matrix<T>& src) const {
   Matrix<T> ret(*this); /* Return value */
+  if (m_rowSize != src.m_rowSize || m_colSize != src.m_colSize) {
+    ret.Fill(InvalidValue());
+    return ret;
+  }
   for (size_t row = 0; row < ret.m_rowSize; row++) {
     for (size_t col = 0; col < ret.m_colSize; col++) {
       ret.Cell(row, col) += src.Cell(row, col);
@@ -947,6 +955,10 @@ Matrix<T> Matrix<T>::operator+(const Matrix<T>& src) const {
 template <class T>
 Matrix<T> Matrix<T>::operator-(const Matrix<T>& src) const {
   Matrix<T> ret(*this); /* Return value */
+  if (m_rowSize != src.m_rowSize || m_colSize != src.m_colSize) {
+    ret.Fill(InvalidValue());
+    return ret;
+  }
   for (size_t row = 0; row < ret.m_rowSize; row++) {
     for (size_t col = 0; col < ret.m_colSize; col++) {
       ret.Cell(row, col) -= src.Cell(row, col);
@@ -964,7 +976,7 @@ template <class T>
 Matrix<T> Matrix<T>::operator*(const Matrix<T>& src) const {
   Matrix<T> ret(m_rowSize, src.m_colSize); /* Return value */
   if (m_colSize != src.m_rowSize) {
-    ret.Fill(NAN);
+    ret.Fill(InvalidValue());
     return ret;
   }
 
@@ -1002,8 +1014,9 @@ Matrix<T> Matrix<T>::operator*(const T& src) const {
 template <class T>
 Matrix<T> Matrix<T>::operator/(const T& src) const {
   Matrix<T> ret(*this); /* Return value */
-  if (std::abs(src) < std::numeric_limits<T>::epsilon()) {
-    ret.Fill(NAN);
+  if (src == static_cast<T>(0) ||
+      std::abs(src) < std::numeric_limits<T>::epsilon()) {
+    ret.Fill(InvalidValue());
     return ret;
   }
 
@@ -1088,10 +1101,14 @@ template <class T>
 bool Matrix<T>::Create(const size_t& a_rowSize, const size_t& a_colSize) {
   bool ret = true;
   Destroy();
+  if (a_colSize != 0 && a_rowSize > SIZE_MAX / a_colSize) {
+    return false;
+  }
   m_rowSize = a_rowSize;
   m_colSize = a_colSize;
   m_matrix.reset(new (std::nothrow) T[m_rowSize * m_colSize]);
   if (m_matrix == nullptr) {
+    Init();
     ret = false;
   }
   return ret;

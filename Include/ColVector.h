@@ -231,7 +231,7 @@ T ColVector<T>::InnerProduct(const ColVector<T>& src) const {
       ret += this->Cell(row, 0) * src[row];
     }
   } else {
-    ret = NAN;
+    ret = Matrix<T>::InvalidValue();
   }
   return ret;
 }
@@ -278,7 +278,7 @@ ColVector<T> ColVector<T>::CrossProduct(const ColVector<T>& head) const {
           static_cast<T>(pow(-1.0, row)) * mat.SubMatrix(row, 0).Determinant();
     }
   } else {
-    ret.Fill(NAN);
+    ret.Fill(Matrix<T>::InvalidValue());
   }
   return ret;
 }

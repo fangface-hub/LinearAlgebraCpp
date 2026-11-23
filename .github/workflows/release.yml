@@ -38,15 +38,8 @@ jobs:
 
       - name: Install packaging tools
         run: |
-          sudo -A apt-get update
-          sudo -A apt-get install -y rpm
-
-      - name: Create and push tag
-        env:
-          RELEASE_VERSION: ${{ inputs.version }}
-        run: |
-          git tag "v$RELEASE_VERSION"
-          git push origin "refs/tags/v$RELEASE_VERSION"
+          sudo apt-get update
+          sudo apt-get install -y rpm
 
       - name: Build packages
         env:
@@ -61,4 +54,4 @@ jobs:
           gh release create "v$RELEASE_VERSION" \
             "dist/linearalgebracpp-dev_${RELEASE_VERSION}_all.deb" \
             "dist/linearalgebracpp-devel-${RELEASE_VERSION}-1.noarch.rpm" \
-            --verify-tag --title "v$RELEASE_VERSION" --generate-notes
+            --target "$GITHUB_SHA" --title "v$RELEASE_VERSION" --generate-notes

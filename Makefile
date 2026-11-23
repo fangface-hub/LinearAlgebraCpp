@@ -29,7 +29,7 @@ package-test:
 
 sample: Binary/Sample
 
-Binary/Sample: Include/Matrix.h Include/ColVector.h Sample/sample.cpp
+Binary/Sample: $(wildcard Include/*.h) Sample/sample.cpp
 	mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) Sample/sample.cpp -IInclude -o $@
 
@@ -38,6 +38,7 @@ $(TEST_BINARY): Tests/MathLibTest.cpp $(wildcard Include/*.h)
 	$(CXX) $(CXXFLAGS) -IInclude Tests/MathLibTest.cpp $(GTEST_LIBS) -o $@
 
 clean:
+	rm -rf dist
 	rm -f Binary/Sample $(TEST_BINARY) $(COVERAGE_BINARY) \
 		$(COVERAGE_BINARY).gcda $(COVERAGE_BINARY).gcno
 	rm -rf $(COVERAGE_REPORT_DIR)
