@@ -110,26 +110,24 @@ make release-package  # build both
 make package-test     # test package contents and version selection
 ```
 
-Package versions are derived from an exact `vX.Y.Z` Git tag on the current
-commit. Untagged builds default to `0.0.0`. For development builds or source
-archives without Git metadata, set `PACKAGE_VERSION` to an `X.Y.Z` version:
+The package version is read from the `VERSION` file at the repository root
+(`X.Y.Z`, currently `1.0.0`). To override it for a development build, set
+`PACKAGE_VERSION` to an `X.Y.Z` version:
 
 ```bash
 PACKAGE_VERSION=1.2.3 make release-package
 ```
 
-`PACKAGE_VERSION` overrides tag detection and must match the intended source
-version. If a commit has multiple version tags, set it explicitly.
+`PACKAGE_VERSION` takes precedence over `VERSION`.
 
 ### Publishing a Release
 
-From GitHub Actions, run **Release packages** on the desired commit's branch
-and enter the version as `X.Y.Z` without a `v` prefix. The workflow creates
-and pushes `vX.Y.Z`, builds both packages with that version, and publishes
-a release with GitHub-generated release notes and both packages attached.
-The workflow requires permission to create tags and releases. An existing tag
-is rejected; if a build or release fails after the tag is pushed, resolve the
-failure and handle the existing tag before retrying.
+Update the `VERSION` file (`X.Y.Z`, no `v` prefix) and merge it, then run
+**Release packages** from GitHub Actions on the desired branch. The workflow
+reads `VERSION`, builds both packages with that version, and creates the
+`vX.Y.Z` release with GitHub-generated release notes and both packages
+attached. The workflow requires permission to create tags and releases. An
+existing tag for the same version is rejected; bump `VERSION` before retrying.
 
 ---
 

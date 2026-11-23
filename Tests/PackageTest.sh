@@ -7,16 +7,14 @@ work=$(mktemp -d "${TMPDIR:-/tmp}/linearalgebracpp-package-test.XXXXXXXX")
 trap 'rm -rf -- "$work"' EXIT HUP INT TERM
 
 mkdir -p "$work/project"
-cp Makefile LICENSE "$work/project/"
+cp Makefile LICENSE VERSION "$work/project/"
 cp -R Include packaging "$work/project/"
 cd "$work/project"
 unset PACKAGE_VERSION
-git init -q
-git -c user.name=PackageTest -c user.email=package-test@example.invalid \
-  commit --allow-empty -qm 'Package test'
+expected=$(tr -d '[:space:]' < VERSION)
 make deb
-[ "$(dpkg-deb -f dist/linearalgebracpp-dev_0.0.0_all.deb Version)" = 0.0.0 ]
-git tag v2.3.4
+[ "$(dpkg-deb -f "dist/linearalgebracpp-dev_${expected}_all.deb" Version)" = "$expected" ]
+printf '2.3.4\n' > VERSION
 
 make release-package
 deb=dist/linearalgebracpp-dev_2.3.4_all.deb

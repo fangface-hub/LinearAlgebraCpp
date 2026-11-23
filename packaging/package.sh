@@ -10,10 +10,11 @@ fi
 
 if [ -n "${PACKAGE_VERSION:-}" ]; then
   version=$PACKAGE_VERSION
-elif version=$(git describe --tags --exact-match --match 'v[0-9]*' HEAD 2>/dev/null); then
-  version=${version#v}
+elif [ -f VERSION ]; then
+  version=$(tr -d '[:space:]' < VERSION)
 else
-  version=0.0.0
+  echo "Error: VERSION file not found" >&2
+  exit 1
 fi
 if ! printf '%s\n' "$version" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
   echo "Error: package version must be X.Y.Z (got '$version')" >&2
